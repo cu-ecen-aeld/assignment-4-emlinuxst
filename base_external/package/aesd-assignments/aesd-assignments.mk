@@ -4,8 +4,8 @@
 #
 ################################################################################
 
-AESD_ASSIGNMENTS_VERSION = master
-AESD_ASSIGNMENTS_SITE = https://github.com/cu-ecen-aeld/assignment-4-emlinuxst.git
+AESD_ASSIGNMENTS_VERSION = origin/master
+AESD_ASSIGNMENTS_SITE = git@github.com:cu-ecen-aeld/assignment-4-emlinuxst.git
 AESD_ASSIGNMENTS_SITE_METHOD = git
 AESD_ASSIGNMENTS_GIT_SUBMODULES = YES
 
