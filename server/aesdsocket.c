@@ -49,68 +49,26 @@ static int send_file_to_client(int client_fd)
 static int receive_packet_and_save(int client_fd)
 {
     char buffer[BUFFER_SIZE];
-    char *packet = NULL;
-    size_t packet_size = 0;
     ssize_t bytes_received;
-    bool newline_found = false;
 
-    while (!newline_found) {
-        bytes_received = recv(client_fd, buffer, sizeof(buffer), 0);
-        if (bytes_received == 0) {
-    		break;
-	}
-
-	if (bytes_received < 0) {
-    		free(packet);
-    		return -1;
-	}
-
-        size_t bytes_to_copy = bytes_received;
-
-        for (ssize_t i = 0; i < bytes_received; i++) {
-            if (buffer[i] == '\n') {
-                bytes_to_copy = i + 1;
-                newline_found = true;
-                break;
-            }
-        }
-
-        char *new_packet = realloc(packet, packet_size + bytes_to_copy);
-        if (new_packet == NULL) {
-            free(packet);
-            return -1;
-        }
-
-        packet = new_packet;
-        memcpy(packet + packet_size, buffer, bytes_to_copy);
-        packet_size += bytes_to_copy;
-    }
-	if (packet_size == 0) {
-        free(packet);
+    bytes_received = recv(client_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received <= 0) {
         return -1;
     }
-    if (!newline_found) {
-        char *new_packet = realloc(packet, packet_size + 1);
-        if (new_packet == NULL) {
-            free(packet);
-            return -1;
-        }
 
-        packet = new_packet;
-        packet[packet_size] = '\n';
-        packet_size++;
-    }
     FILE *file = fopen(DATA_FILE, "a");
     if (file == NULL) {
-        free(packet);
         perror("fopen append");
         return -1;
     }
 
-    fwrite(packet, 1, packet_size, file);
-    fclose(file);
-    free(packet);
+    fwrite(buffer, 1, bytes_received, file);
 
+    if (buffer[bytes_received - 1] != '\n') {
+        fwrite("\n", 1, 1, file);
+    }
+
+    fclose(file);
     return 0;
 }
 
