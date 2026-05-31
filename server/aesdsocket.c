@@ -45,7 +45,6 @@ static int send_file_to_client(int client_fd)
 
     file = fopen(DATA_FILE, "r");
     if (file == NULL) {
-        perror("fopen read");
         return -1;
     }
 
@@ -64,22 +63,25 @@ static int receive_packet_and_save(int client_fd)
 {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_received;
+    FILE *file;
 
-    bytes_received = recv(client_fd, buffer, sizeof(buffer), 0);
-    if (bytes_received <= 0) {
-        return -1;
-    }
-
-    FILE *file = fopen(DATA_FILE, "a");
+    file = fopen(DATA_FILE, "a");
     if (file == NULL) {
-        perror("fopen append");
         return -1;
     }
 
-    fwrite(buffer, 1, bytes_received, file);
+    while (1) {
+        bytes_received = recv(client_fd, buffer, sizeof(buffer), 0);
+        if (bytes_received <= 0) {
+            fclose(file);
+            return -1;
+        }
 
-    if (buffer[bytes_received - 1] != '\n') {
-        fwrite("\n", 1, 1, file);
+        fwrite(buffer, 1, bytes_received, file);
+
+        if (memchr(buffer, '\n', bytes_received) != NULL) {
+            break;
+        }
     }
 
     fclose(file);
@@ -111,13 +113,11 @@ int main(int argc, char *argv[])
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
-        perror("socket");
         closelog();
         return -1;
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-        perror("setsockopt");
         close(server_fd);
         closelog();
         return -1;
@@ -129,14 +129,12 @@ int main(int argc, char *argv[])
     server_addr.sin_port = htons(PORT);
 
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("bind");
         close(server_fd);
         closelog();
         return -1;
     }
 
     if (listen(server_fd, 10) == -1) {
-        perror("listen");
         close(server_fd);
         closelog();
         return -1;
@@ -146,7 +144,6 @@ int main(int argc, char *argv[])
         pid_t pid = fork();
 
         if (pid == -1) {
-            perror("fork");
             close(server_fd);
             closelog();
             return -1;
@@ -159,14 +156,12 @@ int main(int argc, char *argv[])
         }
 
         if (setsid() == -1) {
-            perror("setsid");
             close(server_fd);
             closelog();
             return -1;
         }
 
         if (chdir("/") == -1) {
-            perror("chdir");
             close(server_fd);
             closelog();
             return -1;
