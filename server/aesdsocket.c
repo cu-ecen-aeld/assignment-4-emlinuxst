@@ -22,6 +22,21 @@ static void signal_handler(int signo)
     stop_requested = 1;
 }
 
+static int send_all(int fd, const char *buf, size_t len)
+{
+    size_t sent_total = 0;
+
+    while (sent_total < len) {
+        ssize_t sent = send(fd, buf + sent_total, len - sent_total, 0);
+        if (sent <= 0) {
+            return -1;
+        }
+        sent_total += sent;
+    }
+
+    return 0;
+}
+
 static int send_file_to_client(int client_fd)
 {
     FILE *file;
@@ -35,8 +50,7 @@ static int send_file_to_client(int client_fd)
     }
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        if (send(client_fd, buffer, bytes_read, 0) == -1) {
-            perror("send");
+        if (send_all(client_fd, buffer, bytes_read) == -1) {
             fclose(file);
             return -1;
         }
@@ -89,23 +103,23 @@ int main(int argc, char *argv[])
 
     openlog(NULL, 0, LOG_USER);
 
-    	struct sigaction sa;
-
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = signal_handler;
-
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = signal_handler;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         perror("socket");
+        closelog();
         return -1;
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
         perror("setsockopt");
         close(server_fd);
+        closelog();
         return -1;
     }
 
@@ -117,6 +131,14 @@ int main(int argc, char *argv[])
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         perror("bind");
         close(server_fd);
+        closelog();
+        return -1;
+    }
+
+    if (listen(server_fd, 10) == -1) {
+        perror("listen");
+        close(server_fd);
+        closelog();
         return -1;
     }
 
@@ -126,30 +148,33 @@ int main(int argc, char *argv[])
         if (pid == -1) {
             perror("fork");
             close(server_fd);
+            closelog();
             return -1;
         }
 
         if (pid > 0) {
             close(server_fd);
+            closelog();
             return 0;
         }
 
         if (setsid() == -1) {
             perror("setsid");
             close(server_fd);
+            closelog();
             return -1;
         }
 
-        chdir("/");
+        if (chdir("/") == -1) {
+            perror("chdir");
+            close(server_fd);
+            closelog();
+            return -1;
+        }
+
         close(STDIN_FILENO);
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
-    }
-
-    if (listen(server_fd, 10) == -1) {
-        perror("listen");
-        close(server_fd);
-        return -1;
     }
 
     while (!stop_requested) {
@@ -160,8 +185,6 @@ int main(int argc, char *argv[])
             if (errno == EINTR && stop_requested) {
                 break;
             }
-
-            perror("accept");
             continue;
         }
 
