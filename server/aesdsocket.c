@@ -89,7 +89,7 @@ static int receive_packet_and_save(int client_fd)
         }
     }
 
-    fwrite("\n", 1, 1, file);
+    
     fclose(file);
     return 0;
 }
