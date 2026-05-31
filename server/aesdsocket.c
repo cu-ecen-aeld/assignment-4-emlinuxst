@@ -72,7 +72,12 @@ static int receive_packet_and_save(int client_fd)
 
     while (1) {
         bytes_received = recv(client_fd, buffer, sizeof(buffer), 0);
-        if (bytes_received <= 0) {
+
+        if (bytes_received == 0) {
+            break;
+        }
+
+        if (bytes_received < 0) {
             fclose(file);
             return -1;
         }
@@ -84,6 +89,7 @@ static int receive_packet_and_save(int client_fd)
         }
     }
 
+    fwrite("\n", 1, 1, file);
     fclose(file);
     return 0;
 }
